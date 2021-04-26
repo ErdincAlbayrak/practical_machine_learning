@@ -1,0 +1,111 @@
+---
+title: "Predicting Weight Lifting Exercises from Wearable Technology"
+author: "Erdinc Albayrak"
+date: "4/25/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, echo=FALSE, results='hide', message=FALSE, warning=FALSE}
+library(ggplot2)
+library(caret)
+dataset <- read.csv("~/Downloads/pml-training.csv")
+truetest <- read.csv("~/Downloads/pml-testing.csv")
+```
+
+## Overview
+
+In this report, I have used the Weight Lifting Exercises Dataset which is generated from wearable technology to predict how the activities performed. The activity was one set of Unilateral Dumbbell Biceps Curl but in 5 different ways.
+
+As a result, we have a classification problem with 5 classes. 
+
+## Pre-Processing
+
+I have cleaned up the dataset with pre-processing because it included mostly empty columns and as well as some metadata. This lowered the number of columns from 160 to 53.
+
+```{r cleanup, echo=TRUE}
+dataset <- dataset[!sapply(dataset, function(x) all(x == "" || is.na(x)))]
+truetest <- truetest[!sapply(truetest, function(x) all(x == "" || is.na(x)))]
+dataset <- dataset[, -c(1:7)]
+truetest <- truetest[, -c(1:7)]
+```
+
+## Method
+
+First of all, as I will not contain myself to one model, I need a validation set in addition to a test set. This allows me to use the validation set accuracy for model selection. Once my model is selected, this model is used predict the test set for the final evaluation and consequent metrics are declared as model's success.
+
+Since we have a large enough dataset (19622 data points), I have decided to use a 80-10-10 split for training, validation and test sets. This maximizes my training set size, while still giving me large enough validation and test sets that will grant accurate estimations for evaluation metrics.
+
+```{r data_division,echo=TRUE}
+trainingIndices <- createDataPartition(y=dataset$classe,p=0.80,list=FALSE)
+training <- dataset[trainingIndices,]
+dataset <- dataset[-trainingIndices,]
+validationIndices <- createDataPartition(y=dataset$classe,p=0.50,list=FALSE)
+validation <- dataset[validationIndices,]
+testing <- dataset[-validationIndices,]
+```
+
+## Model Selection
+
+Since caret provides a generic interface, I tried several learning methods without much hassle. In total, I generated a boosted logistic regression, a decision tree, a bagged tree, a random forest, and a naive bayes fits.
+
+### Naive Bayes
+
+Naive bayes model is trained and tested against the validation set.
+```{r naive_bayes, echo=TRUE, warning=FALSE}
+naivefit <- train(classe~.,data=training,method="nb",trControl=trainControl(method="cv",number=3,verboseIter=F),tuneLength=5)
+naivepredictions <- predict(naivefit,validation)
+confusionMatrix(data = naivepredictions,reference = validation$classe)
+```
+
+
+### Logistic Regression
+
+Boosted logistic regression model is trained and tested against the validation set.
+```{r logitboost, echo=TRUE}
+logisticfit <- train(classe~.,data=training,method="LogitBoost",trControl=trainControl(method="cv",number=3,verboseIter=F),tuneLength=5)
+logisticpredictions <- predict(logisticfit,validation)
+confusionMatrix(data = logisticpredictions,reference = validation$classe)
+```
+
+### Decision Tree
+
+Decision tree model is trained and tested against the validation set.
+```{r decision_tree, echo=TRUE}
+treefit <- train(classe~.,data=training,method="rpart",trControl=trainControl(method="cv",number=3,verboseIter=F),tuneLength=5)
+treepredictions <- predict(treefit,validation)
+confusionMatrix(data = treepredictions,reference = validation$classe)
+```
+
+### Bagged Decision Tree
+
+Bagged decision tree model is trained and tested against the validation set.
+```{r bag_tree, echo=TRUE}
+bagtreefit <- train(classe~.,data=training,method="treebag",trControl=trainControl(method="cv",number=3,verboseIter=F),tuneLength=5)
+bagtreepredictions <- predict(bagtreefit,validation)
+confusionMatrix(data = bagtreepredictions,reference = validation$classe)
+```
+
+### Random Forest
+
+Random forest model is trained and tested against the validation set.
+```{r random_forest, echo=TRUE}
+forestfit <- train(classe~.,data=training,method="rf",trControl=trainControl(method="cv",number=3,verboseIter=F),tuneLength=5)
+forestpredictions <- predict(forestfit,validation)
+confusionMatrix(data = forestpredictions,reference = validation$classe)
+```
+
+### Final Model
+
+In my trials random forest model was the most successful so I finalized it as my model and performed predictions on the test set for the final evaluation metrics.
+```{r test_set, echo=TRUE}
+testingpredictions <- predict(forestfit,testing)
+confusionMatrix(data = testingpredictions,reference = testing$classe)
+```
+
+After this I also performed predictions on the quiz questions.
+```{r quiz_set, echo=TRUE}
+testpredictions <- predict(forestfit,truetest)
+testpredictions
+```
